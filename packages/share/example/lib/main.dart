@@ -22,6 +22,8 @@ class DemoApp extends StatefulWidget {
 class DemoAppState extends State<DemoApp> {
   String text = '';
   String subject = '';
+  String url = '';
+  String thumbnail = '';
   List<String> imagePaths = [];
 
   @override
@@ -57,6 +59,34 @@ class DemoAppState extends State<DemoApp> {
                     onChanged: (String value) => setState(() {
                       subject = value;
                     }),
+                  ),
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Share url:',
+                      hintText: 'Enter link to share (optional)',
+                    ),
+                    maxLines: 2,
+                    onChanged: (String value) => setState(() {
+                      url = value;
+                    }),
+                  ),
+                  const Padding(padding: EdgeInsets.only(top: 12.0)),
+                  ImagePreviews(thumbnail.isNotEmpty ? [thumbnail] : [],
+                      onDelete: _onDeleteImage),
+                  ListTile(
+                    leading: Icon(Icons.add),
+                    title: Text("Add thumbnail"),
+                    onTap: () async {
+                      final imagePicker = ImagePicker();
+                      final pickedFile = await imagePicker.getImage(
+                        source: ImageSource.gallery,
+                      );
+                      if (pickedFile != null) {
+                        setState(() {
+                          thumbnail = pickedFile.path;
+                        });
+                      }
+                    },
                   ),
                   const Padding(padding: EdgeInsets.only(top: 12.0)),
                   ImagePreviews(imagePaths, onDelete: _onDeleteImage),
@@ -125,7 +155,9 @@ class DemoAppState extends State<DemoApp> {
           sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size);
     } else {
       await Share.share(text,
+          url: url,
           subject: subject,
+          thumbnail: thumbnail,
           sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size);
     }
   }

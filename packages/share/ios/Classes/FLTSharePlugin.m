@@ -11,10 +11,13 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
 
 @property(readonly, nonatomic, copy) NSString *subject;
 @property(readonly, nonatomic, copy) NSString *text;
+@property(readonly, nonatomic, copy) NSString *url;
+@property(readonly, nonatomic, copy) NSString *thumbnail;
 @property(readonly, nonatomic, copy) NSString *path;
 @property(readonly, nonatomic, copy) NSString *mimeType;
 
-- (instancetype)initWithSubject:(NSString *)subject text:(NSString *)text NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithSubject:(NSString *)subject thumbnail:(NSString *)thumbnail text:(NSString *)text NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithUrl:(NSString *)url thumbnail:(NSString *)thumbnail subject:(NSString *)subject text:(NSString *)text NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFile:(NSString *)path
                     mimeType:(NSString *)mimeType NS_DESIGNATED_INITIALIZER;
 
@@ -29,10 +32,22 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
   return nil;
 }
 
-- (instancetype)initWithSubject:(NSString *)subject text:(NSString *)text {
+- (instancetype)initWithSubject:(NSString *)subject thumbnail:(NSString *)thumbnail text:(NSString *)text {
   self = [super init];
   if (self) {
     _subject = [subject isKindOfClass:NSNull.class] ? @"" : subject;
+    _thumbnail = [thumbnail isKindOfClass:NSNull.class] ? @"" : thumbnail;
+    _text = text;
+  }
+  return self;
+}
+
+- (instancetype)initWithUrl:(NSString *)url thumbnail:(NSString *)thumbnail subject:(NSString *)subject text:(NSString *)text {
+  self = [super init];
+  if (self) {
+    _subject = [subject isKindOfClass:NSNull.class] ? @"" : subject;
+    _url = [url isKindOfClass:NSNull.class] ? @"" : url;
+    _thumbnail = [thumbnail isKindOfClass:NSNull.class] ? @"" : thumbnail;
     _text = text;
   }
   return self;
@@ -54,7 +69,7 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
 - (id)activityViewController:(UIActivityViewController *)activityViewController
          itemForActivityType:(UIActivityType)activityType {
   if (!_path || !_mimeType) {
-    return _text;
+    return ![_url isEqualToString:@""] ? [NSURL URLWithString:_url] : _text;
   }
 
   if ([_mimeType hasPrefix:@"image/"]) {
@@ -76,6 +91,19 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
     API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0)) {
   LPLinkMetadata *metadata = [[LPLinkMetadata alloc] init];
   metadata.title = _text;
+
+  if (![_url isEqualToString:@""]) {
+    NSURL *url = [NSURL URLWithString:_url];
+    metadata.originalURL = url;
+    metadata.URL = metadata.originalURL;
+  }
+
+  if (![_thumbnail isEqualToString:@""]) {
+    NSURL *imageURL = [NSURL fileURLWithPath:_thumbnail];
+    NSItemProvider *itemProvider = [[NSItemProvider alloc] initWithContentsOfURL:imageURL];
+    metadata.imageProvider = itemProvider;
+  }
+  
   return metadata;
 }
 
@@ -123,6 +151,8 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
     if ([@"share" isEqualToString:call.method]) {
       NSString *shareText = arguments[@"text"];
       NSString *shareSubject = arguments[@"subject"];
+      NSString *shareURL = arguments[@"url"];
+      NSString *shareThumbnail = arguments[@"thumbnail"];
 
       if (shareText.length == 0) {
         result([FlutterError errorWithCode:@"error"
@@ -133,6 +163,8 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
 
       [self shareText:shareText
                  subject:shareSubject
+                 url:shareURL
+                 thumbnail:shareThumbnail
           withController:[UIApplication sharedApplication].keyWindow.rootViewController
                 atSource:originRect];
       result(nil);
@@ -184,9 +216,11 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
 
 + (void)shareText:(NSString *)shareText
            subject:(NSString *)subject
+           url:(NSString *)urlString
+           thumbnail:(NSString *)thumbnail
     withController:(UIViewController *)controller
           atSource:(CGRect)origin {
-  ShareData *data = [[ShareData alloc] initWithSubject:subject text:shareText];
+  ShareData *data = [[ShareData alloc] initWithUrl:urlString thumbnail:thumbnail subject:subject text:shareText];
   [self share:@[ data ] withController:controller atSource:origin];
 }
 
@@ -199,7 +233,7 @@ static NSString *const PLATFORM_CHANNEL = @"plugins.flutter.io/share";
   NSMutableArray *items = [[NSMutableArray alloc] init];
 
   if (text || subject) {
-    [items addObject:[[ShareData alloc] initWithSubject:subject text:text]];
+    [items addObject:[[ShareData alloc] initWithSubject:subject thumbnail:@"" text:text]];
   }
 
   for (int i = 0; i < [paths count]; i++) {
